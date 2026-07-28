@@ -27,7 +27,7 @@
   <key>ProgramArguments</key>
   <array>
     <string>/ABSOLUTE/PATH/TO/dont-sleep.sh</string>
-    <string>50</string>
+    <string>15</string>
   </array>
 
   <key>EnvironmentVariables</key>

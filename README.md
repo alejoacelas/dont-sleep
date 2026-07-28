@@ -35,15 +35,15 @@ sudo launchctl print system/com.example.dont-sleep
 tail -f "$HOME/Library/Logs/dont-sleep.log"
 ```
 
-The default battery threshold is 50%. To change it, edit the `50` in `ProgramArguments` in the installed plist, then reload the daemon.
+The default battery threshold is 15%. To change it, edit the `15` in `ProgramArguments` in the installed plist, then reload the daemon.
 
 ## What it does
 
 Every 15 seconds, `dont-sleep` checks agent activity, battery level, lid state and thermal pressure:
 
-- It enables `pmset disablesleep` while a Claude Code or Codex agent is active and the battery is at least 50%.
+- It enables `pmset disablesleep` while a Claude Code or Codex agent is active and the battery is at least 15%.
 - It recognises long, quiet shell commands and subagents as active work for up to one hour. Normally fast tools such as reads and edits expire after 10 minutes. Tools waiting for human input do not count after the five-minute activity grace.
-- When the agent stops or the battery falls below 50%, it releases the override. If the lid is shut on battery, it forces sleep because macOS does not retry a suppressed lid-close event.
+- When the agent stops or the battery falls below 15%, it releases the override. If the lid is shut on battery, it forces sleep because macOS does not retry a suppressed lid-close event.
 - If a lid-shut Mac reaches Heavy thermal pressure twice in succession, it releases the override and forces sleep.
 
 The override is armed while the lid is still open. This matters because macOS can sleep before the daemon's next poll if it waits to observe the lid closing.
@@ -62,7 +62,7 @@ sudo launchctl kickstart -k system/com.example.dont-sleep
 ## Running manually
 
 ```bash
-./dont-sleep.sh            # default 50% battery threshold
+./dont-sleep.sh            # default 15% battery threshold
 ./dont-sleep.sh 70         # custom threshold
 ./dont-sleep.sh --dry-run  # log decisions without changing sleep state
 ```

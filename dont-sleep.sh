@@ -37,7 +37,7 @@
 # Usage:
 #   dont-sleep [BATTERY_THRESHOLD] [--dry-run]     # Ctrl-C to stop
 #
-#   BATTERY_THRESHOLD   Battery % at/above which to stay awake. Default: 50.
+#   BATTERY_THRESHOLD   Battery % at/above which to stay awake. Default: 15.
 #   --dry-run   Log every decision but never actually flip sleep or sleepnow.
 #               Use this to watch it behave for a while before trusting it.
 #
@@ -73,7 +73,7 @@
 set -euo pipefail
 
 # --- Config (edit here; BATTERY_THRESHOLD is also overridable as arg 1) -------------
-BATTERY_THRESHOLD=50           # battery % at/above which to stay awake
+BATTERY_THRESHOLD=15           # battery % at/above which to stay awake
 THERMAL_TRIGGER_LEVEL="Heavy"  # thermal pressure at/above which to force sleep
 HOT_READS_BEFORE_SLEEP=2       # consecutive elevated reads before forcing sleep
 POLL_INTERVAL_SECONDS=15       # loop cadence
