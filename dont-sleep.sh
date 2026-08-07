@@ -77,7 +77,7 @@ BATTERY_THRESHOLD=50           # battery % at/above which to stay awake
 THERMAL_TRIGGER_LEVEL="Heavy"  # thermal pressure at/above which to force sleep
 HOT_READS_BEFORE_SLEEP=2       # consecutive elevated reads before forcing sleep
 POLL_INTERVAL_SECONDS=15       # loop cadence
-AGENT_GRACE_MINUTES=5          # keep awake only if a Claude Code / Codex transcript
+AGENT_GRACE_MINUTES=10         # keep awake only if a Claude Code / Codex transcript
                                # contains an event timestamped this recently, or an
                                # outstanding tool call (proxy for a long, quiet step)
 FAST_TOOL_MAX_MINUTES=10       # unmatched fast calls (Read/Edit/Grep/etc.) expire quickly
