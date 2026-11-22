@@ -79,7 +79,7 @@ write_fixture() {
       ;;
     codex-waiting-for-user)
       printf '%s\n' "{\"timestamp\":\"${timestamp}\",\"type\":\"event_msg\",\"payload\":{\"type\":\"task_started\"}}" > "${path}"
-      printf '%s\n' "{\"timestamp\":\"${timestamp}\",\"type\":\"response_item\",\"payload\":{\"type\":\"function_call\",\"call_id\":\"call_ask\",\"name\":\"request_user_input\"}}" >> "${path}"
+      printf '%s\n' "{\"timestamp\":\"${timestamp}\",\"type\":\"response_item\",\"payload\":{\"type\":\"function_call\",\"call_id\":\"call_ask\",\"name\":\"${FIXTURE_TOOL_NAME:-request_user_input}\"}}" >> "${path}"
       ;;
     codex-generic-pending)
       printf '%s\n' "{\"timestamp\":\"${timestamp}\",\"type\":\"event_msg\",\"payload\":{\"type\":\"task_started\"}}" > "${path}"
@@ -227,6 +227,11 @@ test_activity_signal() {
   make_stale "${fixture}" 10
   session_has_outstanding_tool "${fixture}" && fail "Codex user-input tool is inactive" "reported active" || pass "Codex user-input tool is inactive"
 
+  fixture="${codex_dir}/waiting-async.jsonl"
+  FIXTURE_TOOL_NAME=request_user_input_async write_fixture "${fixture}" codex-waiting-for-user
+  make_stale "${fixture}" 10
+  session_has_outstanding_tool "${fixture}" && fail "Codex async user-input tool is inactive" "reported active" || pass "Codex async user-input tool is inactive"
+
   fixture="${codex_dir}/generic-pending.jsonl"
   write_fixture "${fixture}" codex-generic-pending
   make_stale "${fixture}" 10
@@ -364,7 +369,7 @@ run_loop_case() {
   local expected_sleep="$7" expected_set="$8" expected_desired="$9" sleepnow_status="${10:-0}" expected_cooldown="${11:-$6}"
   local current_sleep="${12:-1}" thermal_value="${13:-Nominal}" initial_hot_count="${14:-0}"
   local body output
-  body="$(awk '/^while true; do$/ { capture=1; next } capture && /^  sleep "\$\{POLL_INTERVAL_SECONDS\}"$/ { exit } capture { print }' "${SCRIPT}")"
+  body="$(awk '/^while true; do$/ { capture=1; next } capture && /^  poll_sleep$/ { exit } capture { print }' "${SCRIPT}")"
   output="$({
     BATTERY_THRESHOLD=50 THERMAL_TRIGGER_RANK=2 HOT_READS_BEFORE_SLEEP=2 COOLDOWN_SECONDS=300 DRY_RUN=0
     AGENT_GRACE_MINUTES=5 POLL_INTERVAL_SECONDS=15 LOG_FILE=""
@@ -381,6 +386,7 @@ run_loop_case() {
     pmset() { if [[ "${1:-}" == "sleepnow" ]]; then slept=1; return "${sleepnow_status}"; fi; }
     log() { :; }
     sleep() { :; }
+    poll_sleep() { :; }
     for _iteration in 1; do eval "${body}"; done
     printf 'slept=%s set=%s desired=%s cooldown=%s\n' "${slept}" "${set_calls}" "${desired:-unset}" "${cooldown_until}"
   } 2>&1)"

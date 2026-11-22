@@ -37,7 +37,7 @@
 # Usage:
 #   dont-sleep [BATTERY_THRESHOLD] [--dry-run]     # Ctrl-C to stop
 #
-#   BATTERY_THRESHOLD   Battery % at/above which to stay awake. Default: 50.
+#   BATTERY_THRESHOLD   Battery % at/above which to stay awake. Default: 15.
 #   --dry-run   Log every decision but never actually flip sleep or sleepnow.
 #               Use this to watch it behave for a while before trusting it.
 #
@@ -73,11 +73,11 @@
 set -euo pipefail
 
 # --- Config (edit here; BATTERY_THRESHOLD is also overridable as arg 1) -------------
-BATTERY_THRESHOLD=50           # battery % at/above which to stay awake
+BATTERY_THRESHOLD=15           # battery % at/above which to stay awake
 THERMAL_TRIGGER_LEVEL="Heavy"  # thermal pressure at/above which to force sleep
 HOT_READS_BEFORE_SLEEP=2       # consecutive elevated reads before forcing sleep
 POLL_INTERVAL_SECONDS=15       # loop cadence
-AGENT_GRACE_MINUTES=10         # keep awake only if a Claude Code / Codex transcript
+AGENT_GRACE_MINUTES=5          # keep awake only if a Claude Code / Codex transcript
                                # contains an event timestamped this recently, or an
                                # outstanding tool call (proxy for a long, quiet step)
 FAST_TOOL_MAX_MINUTES=10       # unmatched fast calls (Read/Edit/Grep/etc.) expire quickly
@@ -178,7 +178,7 @@ battery_pct() {           # e.g. "83"; empty if unreadable
 
 thermal_level() {         # "Nominal"/"Moderate"/"Heavy"/... ; empty if unreadable
   powermetrics -n 1 -i 200 --samplers thermal 2>/dev/null \
-    | awk -F': ' '/Current pressure level/{print $2; exit}'
+    | awk -F': ' '/Current pressure level/{print $2; exit}' || true
 }
 
 # Read separately from jq so a permissions/TCC failure cannot be mistaken for
@@ -287,7 +287,7 @@ session_has_outstanding_tool() {
           try (sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) catch null
         else null end;
     def waits_for_human:
-      . == "AskUserQuestion" or . == "request_user_input";
+      . == "AskUserQuestion" or . == "request_user_input" or . == "request_user_input_async";
     def long_running($name; $kind):
       (["Bash", "bash", "Task", "TaskOutput", "Agent", "Explore", "Workflow",
         "Monitor", "ScheduleWakeup", "exec", "exec_command", "wait", "wait_agent",
@@ -505,11 +505,22 @@ cleanup() {
   [[ -n "${_CLEANED:-}" ]] && return; _CLEANED=1
   echo
   echo "Exiting — restoring normal sleep behavior…"
-  pmset -a disablesleep 0 2>/dev/null || true
+  (( DRY_RUN )) || pmset -a disablesleep 0 2>/dev/null || true
   echo "Done — the Mac can sleep normally again."
   echo "===== stopped $(date '+%Y-%m-%d %H:%M:%S')  pid=$$ =====" >> "${LOG_FILE:-/dev/null}" 2>/dev/null || true
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+# A signal must end the script: a trap that only ran cleanup would return into the
+# loop, which could set the override again before launchd kills the process.
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# Wait in the background so a TERM is handled at once: bash defers a trap until a
+# foreground command ends, and launchd kills the daemon 5 s after asking it to stop.
+poll_sleep() {
+  sleep "${POLL_INTERVAL_SECONDS}" &
+  wait $! || true
+}
 
 # --- Main loop --------------------------------------------------------------
 
@@ -537,10 +548,9 @@ while true; do
   # Thermal safety net — only meaningful with the lid shut, where a closed laptop
   # in a bag can't shed heat. If we'd otherwise hold it awake but it's running hot
   # for HOT_READS_BEFORE_SLEEP reads, DROP the override AND force an immediate
-  # sleep. (Dropping alone would eventually clamshell-sleep it, since the lid is
-  # shut; forcing guarantees it sleeps *now* to cool down, and also covers the
-  # docked case — external display — where a lid-shut Mac wouldn't sleep on its
-  # own.) Suppressed during the post-sleep cooldown window. Only read powermetrics
+  # sleep. (Dropping the override alone does not make macOS retry the lid-shut
+  # sleep, so force it; this also covers the docked case, external display, where
+  # a lid-shut Mac wouldn't sleep on its own.) Suppressed during the post-sleep cooldown window. Only read powermetrics
   # when it could matter (want-awake + lid shut) to avoid needless wakeups/cost.
   level=""
   if (( want_awake )) && lid_closed && (( now >= cooldown_until )); then
@@ -564,6 +574,7 @@ while true; do
         else
           log "pmset sleepnow failed during thermal guard — will retry next poll"
           hot_count=$((HOT_READS_BEFORE_SLEEP - 1))
+          poll_sleep
         fi
       fi
       if (( thermal_sleep_succeeded )); then
@@ -635,5 +646,5 @@ while true; do
     fi
   fi
 
-  sleep "${POLL_INTERVAL_SECONDS}"
+  poll_sleep
 done

@@ -10,23 +10,12 @@ Keep your MacBook awake while Claude Code or Codex is working—even on battery 
 Install `dont-sleep` as a root LaunchDaemon so it starts automatically after every reboot:
 
 ```bash
-mkdir -p "$HOME/code"
-git clone https://github.com/HartreeWorks/dont-sleep.git "$HOME/code/dont-sleep"
-cd "$HOME/code/dont-sleep"
-
-sudo mkdir -p /usr/local/libexec
-sudo install -o root -g wheel -m 755 dont-sleep.sh /usr/local/libexec/dont-sleep.sh
-
-sed \
-  -e 's|/ABSOLUTE/PATH/TO/dont-sleep.sh|/usr/local/libexec/dont-sleep.sh|' \
-  -e "s|YOUR_USERNAME|$USER|g" \
-  dont-sleep.plist > /tmp/com.example.dont-sleep.plist
-
-sudo install -o root -g wheel -m 644 \
-  /tmp/com.example.dont-sleep.plist \
-  /Library/LaunchDaemons/com.example.dont-sleep.plist
-sudo launchctl bootstrap system /Library/LaunchDaemons/com.example.dont-sleep.plist
+git clone https://github.com/alejoacelas/dont-sleep.git
+cd dont-sleep
+./install.sh
 ```
+
+`install.sh` asks for `sudo`, copies the script to `/usr/local/libexec/dont-sleep.sh`, installs the LaunchDaemon `com.example.dont-sleep` for your user and starts it.
 
 Check that it is running:
 
@@ -35,15 +24,15 @@ sudo launchctl print system/com.example.dont-sleep
 tail -f "$HOME/Library/Logs/dont-sleep.log"
 ```
 
-The default battery threshold is 50%. To change it, edit the `50` in `ProgramArguments` in the installed plist, then reload the daemon.
+The default battery threshold is 15%. To change it, edit the `15` in `ProgramArguments` in the installed plist, then reload the daemon.
 
 ## What it does
 
 Every 15 seconds, `dont-sleep` checks agent activity, battery level, lid state and thermal pressure:
 
-- It enables `pmset disablesleep` while a Claude Code or Codex agent is active and the battery is at least 50%.
-- It recognises long, quiet shell commands and subagents as active work for up to one hour. Normally fast tools such as reads and edits expire after 10 minutes. Tools waiting for human input do not count after the 10-minute activity grace.
-- When the agent stops or the battery falls below 50%, it releases the override. If the lid is shut on battery, it forces sleep because macOS does not retry a suppressed lid-close event.
+- It enables `pmset disablesleep` while a Claude Code or Codex agent is active and the battery is at least 15%.
+- It recognises long, quiet shell commands and subagents as active work for up to one hour. Normally fast tools such as reads and edits expire after 10 minutes. Tools waiting for human input do not count after the five-minute activity grace.
+- When the agent stops or the battery falls below 15%, it releases the override. If the lid is shut on battery, it forces sleep because macOS does not retry a suppressed lid-close event.
 - If a lid-shut Mac reaches Heavy thermal pressure twice in succession, it releases the override and forces sleep.
 
 The override is armed while the lid is still open. This matters because macOS can sleep before the daemon's next poll if it waits to observe the lid closing.
@@ -53,16 +42,14 @@ Agent activity comes from `.jsonl` transcripts under `~/.claude/projects` and `~
 ## Updating
 
 ```bash
-cd "$HOME/code/dont-sleep"
 git pull
-sudo install -o root -g wheel -m 755 dont-sleep.sh /usr/local/libexec/dont-sleep.sh
-sudo launchctl kickstart -k system/com.example.dont-sleep
+./install.sh
 ```
 
 ## Running manually
 
 ```bash
-./dont-sleep.sh            # default 50% battery threshold
+./dont-sleep.sh            # default 15% battery threshold
 ./dont-sleep.sh 70         # custom threshold
 ./dont-sleep.sh --dry-run  # log decisions without changing sleep state
 ```
@@ -71,11 +58,11 @@ The script needs root access for `pmset disablesleep` and thermal-pressure readi
 
 ## Configuration and logs
 
-Advanced settings—including the 10-minute activity grace, 10-minute fast-tool limit, one-hour absolute tool limit, thermal trigger, polling interval and five-minute post-sleep cooldown—are constants near the top of `dont-sleep.sh`.
+Advanced settings—including the five-minute activity grace, 10-minute fast-tool limit, one-hour absolute tool limit, thermal trigger, polling interval and five-minute post-sleep cooldown—are constants near the top of `dont-sleep.sh`.
 
 State changes are logged to `~/Library/Logs/dont-sleep.log`. Logs older than 14 days are pruned at startup.
 
-Do not run a LaunchDaemon script directly from `~/Documents`, `~/Desktop`, `~/Downloads` or iCloud Drive: macOS privacy controls can block root daemons from those folders. The quickstart avoids this by installing a root-owned copy under `/usr/local/libexec`.
+Do not run a LaunchDaemon script directly from `~/Documents`, `~/Desktop`, `~/Downloads` or iCloud Drive: macOS privacy controls can block root daemons from those folders. `install.sh` avoids this by installing a root-owned copy under `/usr/local/libexec`.
 
 ## Tests
 
